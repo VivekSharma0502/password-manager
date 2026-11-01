@@ -1,0 +1,22 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "passwords": {
+          "$id": {
+            ".validate": "newData.hasChildren(['v', 'iv', 'ct', 'createdAt'])",
+            "v":         { ".validate": "newData.val() === 1" },
+            "iv":        { ".validate": "newData.isString() && newData.val().length < 64" },
+            "ct":        { ".validate": "newData.isString() && newData.val().length < 20000" },
+            "createdAt": { ".validate": "newData.isNumber()" },
+            "$other":    { ".validate": false }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A modern, secure password manager to keep all your accounts safe and organized." />
+  <title>Password Manager — Keep Your Accounts Secure</title>
+
+  <!-- Google Font: Inter for clean modern typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Lucide Icons CDN for crisp SVG icons -->
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+
+  <!-- Firebase SDK (v9 compat) — Realtime Database -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body class="locked">
+
+  <!-- LOCK SCREEN: sign in / create vault. The master password never leaves the
+       browser; it only derives the encryption key and the login secret. -->
+  <div class="lock-screen" id="lock-screen">
+    <div class="lock-card glass-card">
+      <div class="lock-logo" aria-hidden="true"><i data-lucide="shield-check"></i></div>
+      <h1 class="lock-title">Password Manager</h1>
+      <p class="lock-sub" id="lock-sub">Unlock your vault</p>
+
+      <div class="lock-tabs" role="tablist">
+        <button type="button" class="lock-tab active" id="tab-signin" role="tab" aria-selected="true">Unlock</button>
+        <button type="button" class="lock-tab" id="tab-signup" role="tab" aria-selected="false">Create vault</button>
+      </div>
+
+      <form id="auth-form" novalidate>
+        <div class="input-group">
+          <label for="auth-email">Email</label>
+          <div class="input-wrapper">
+            <i data-lucide="mail" class="field-icon" aria-hidden="true"></i>
+            <input type="email" id="auth-email" placeholder="you@example.com" autocomplete="username" required />
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="auth-master">Master password</label>
+          <div class="input-wrapper">
+            <i data-lucide="key-round" class="field-icon" aria-hidden="true"></i>
+            <input type="password" id="auth-master" placeholder="Your master password" autocomplete="current-password" required />
+          </div>
+        </div>
+        <div class="input-group" id="confirm-group" hidden>
+          <label for="auth-confirm">Confirm master password</label>
+          <div class="input-wrapper">
+            <i data-lucide="key-round" class="field-icon" aria-hidden="true"></i>
+            <input type="password" id="auth-confirm" placeholder="Type it again" autocomplete="new-password" />
+          </div>
+        </div>
+        <p class="lock-warning" id="lock-warning" hidden>
+          Use at least 12 characters. There is no reset: if you forget this password, your saved credentials cannot be recovered.
+        </p>
+        <p class="lock-error" id="lock-error" role="alert" hidden></p>
+        <button type="submit" class="btn btn-primary" id="auth-submit">
+          <i data-lucide="lock-keyhole-open" aria-hidden="true"></i>
+          <span>Unlock vault</span>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       OUTER WRAPPER — responsive: centred on mobile, full-width dashboard on desktop
+       ============================================================ -->
+  <div class="app-wrapper">
+
+    <!-- ========================================================
+         HEADER — logo, app title, subtitle
+         ======================================================== -->
+    <header class="app-header">
+      <div class="logo-area">
+        <!-- Shield-lock icon acts as the app logo -->
+        <div class="logo-icon" aria-hidden="true">
+          <i data-lucide="shield-check"></i>
+        </div>
+        <div class="logo-text">
+          <h1>Password Manager</h1>
+          <p class="subtitle">Keep your accounts secure</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="connection-status" id="connection-status" title="Database connection status">
+          <span class="status-dot offline"></span>
+          <span class="status-label">Connecting…</span>
+        </div>
+        <button type="button" class="icon-btn" id="lock-btn" aria-label="Lock vault" title="Lock vault">
+          <i data-lucide="lock" aria-hidden="true"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- ========================================================
+         MAIN CONTENT — two-column grid on desktop, single column on mobile
+         ======================================================== -->
+    <main class="app-main">
+
+      <!-- ====================================================
+           LEFT COLUMN — search + add password form
+           ==================================================== -->
+      <div class="column column-left">
+
+        <!-- SEARCH SECTION — filter saved passwords -->
+        <section class="search-section" aria-label="Search saved passwords">
+          <div class="search-bar">
+            <i data-lucide="search" class="search-icon" aria-hidden="true"></i>
+            <label for="search-input" class="sr-only">Search saved accounts</label>
+            <input type="search" id="search-input" placeholder="Search your vault…" autocomplete="off" />
+          </div>
+        </section>
+
+        <!-- PASSWORD INPUT FORM — add / edit a password entry -->
+        <section class="form-section glass-card" aria-label="Add a new password">
+          <h2 class="section-title">
+            <i data-lucide="plus-circle" class="title-icon" aria-hidden="true"></i>
+            Add New Credential
+          </h2>
+
+          <form id="password-form" novalidate>
+            <!-- Website / App Name -->
+            <div class="input-group">
+              <label for="website-input">Website / App Name</label>
+              <div class="input-wrapper">
+                <i data-lucide="globe" class="field-icon" aria-hidden="true"></i>
+                <input type="text" id="website-input" placeholder="e.g. github.com" required autocomplete="off" />
+              </div>
+            </div>
+
+            <!-- Username or Email -->
+            <div class="input-group">
+              <label for="username-input">Username or Email</label>
+              <div class="input-wrapper">
+                <i data-lucide="user" class="field-icon" aria-hidden="true"></i>
+                <input type="text" id="username-input" placeholder="e.g. john@example.com" required autocomplete="off" />
+              </div>
+            </div>
+
+            <!-- Password -->
+            <div class="input-group">
+              <label for="password-input">Password</label>
+              <div class="input-wrapper">
+                <i data-lucide="lock" class="field-icon" aria-hidden="true"></i>
+                <input type="password" id="password-input" placeholder="Enter your password" required
+                  autocomplete="new-password" />
+                <!-- Toggle visibility inside the field -->
+                <button type="button" class="toggle-visibility" id="toggle-form-pw"
+                  aria-label="Toggle password visibility" title="Show / Hide password">
+                  <i data-lucide="eye" class="eye-open"></i>
+                  <i data-lucide="eye-off" class="eye-closed" style="display:none"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Password strength indicator -->
+            <div class="password-strength" id="password-strength">
+              <div class="strength-bar"><span id="strength-fill"></span></div>
+              <small id="strength-text">Password strength</small>
+            </div>
+
+            <!-- Save button -->
+            <button type="submit" class="btn btn-primary" id="save-btn">
+              <i data-lucide="save" aria-hidden="true"></i>
+              <span>Save to Vault</span>
+            </button>
+
+            <!-- Helper text -->
+            <p class="helper-text">
+              <i data-lucide="info" class="helper-icon" aria-hidden="true"></i>
+              Entries are encrypted in your browser before they sync. Firebase only stores ciphertext.
+            </p>
+          </form>
+        </section>
+      </div>
+
+      <!-- ====================================================
+           RIGHT COLUMN — Your Vault (saved passwords)
+           ==================================================== -->
+      <div class="column column-right">
+        <section class="passwords-section" aria-label="Your vault">
+
+          <!-- Vault header with icon, title, subtitle and count badge -->
+          <div class="vault-header glass-card">
+            <div class="vault-header-top">
+              <div class="vault-title-area">
+                <div class="vault-icon" aria-hidden="true">
+                  <i data-lucide="lock-keyhole"></i>
+                </div>
+                <div>
+                  <h2 class="vault-title">Your Vault</h2>
+                  <p class="vault-subtitle">Encrypted in your browser, synced as ciphertext</p>
+                </div>
+              </div>
+              <span class="badge" id="count-badge">0</span>
+            </div>
+          </div>
+
+          <!-- Container where password cards are rendered by JS -->
+          <div id="passwords-list" class="passwords-list">
+            <!-- EMPTY STATE — shown when no passwords are saved yet -->
+            <div class="empty-state" id="empty-state">
+              <div class="empty-state-inner glass-card">
+                <i data-lucide="vault" class="empty-icon" aria-hidden="true"></i>
+                <h3>Your vault is empty</h3>
+                <p>Add your first credential using the form. Everything is encrypted before it leaves your device.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+    </main>
+
+    <!-- ========================================================
+         BOTTOM NAVIGATION — mobile-style icon bar (always visible)
+         ======================================================== -->
+    <nav class="bottom-nav" aria-label="Quick actions">
+      <button class="nav-btn active" aria-label="Home" title="Home">
+        <i data-lucide="home" aria-hidden="true"></i>
+        <span>Home</span>
+      </button>
+      <button class="nav-btn" aria-label="Generate password" title="Generate a random password" id="nav-generate">
+        <i data-lucide="wand-2" aria-hidden="true"></i>
+        <span>Generate</span>
+      </button>
+      <button class="nav-btn" aria-label="Your vault" title="Jump to vault" id="nav-vault">
+        <i data-lucide="lock-keyhole" aria-hidden="true"></i>
+        <span>Vault</span>
+      </button>
+      <button class="nav-btn" aria-label="Settings" title="Settings" id="nav-settings">
+        <i data-lucide="settings" aria-hidden="true"></i>
+        <span>Settings</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ============================================================
+       TOAST NOTIFICATION — appears briefly for user feedback
+       ============================================================ -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <!-- ============================================================
+       PASSWORD GENERATOR MODAL
+       ============================================================ -->
+  <div class="modal-overlay" id="generator-modal" aria-hidden="true">
+    <div class="modal glass-card" role="dialog" aria-label="Password generator">
+      <div class="modal-header">
+        <h3>Password Generator</h3>
+        <button class="modal-close" id="close-generator" aria-label="Close generator">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="generated-pw-area">
+          <output id="generated-pw" class="generated-pw">Click Generate</output>
+          <button class="icon-btn" id="copy-generated" aria-label="Copy generated password" title="Copy">
+            <i data-lucide="copy" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div class="slider-group">
+          <label for="pw-length">Length: <span id="pw-length-val">16</span></label>
+          <input type="range" id="pw-length" min="8" max="64" value="16" />
+        </div>
+        <div class="checkbox-group">
+          <label><input type="checkbox" id="pw-upper" checked /> Uppercase</label>
+          <label><input type="checkbox" id="pw-lower" checked /> Lowercase</label>
+          <label><input type="checkbox" id="pw-digits" checked /> Digits</label>
+          <label><input type="checkbox" id="pw-symbols" checked /> Symbols</label>
+        </div>
+        <button class="btn btn-primary" id="generate-pw-btn">
+          <i data-lucide="refresh-cw" aria-hidden="true"></i>
+          <span>Generate</span>
+        </button>
+        <button class="btn btn-secondary" id="use-pw-btn">
+          <i data-lucide="arrow-down-to-line" aria-hidden="true"></i>
+          <span>Use This Password</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card template (used by JS to clone) — kept hidden -->
+  <template id="password-card-template">
+    <!-- Each saved password is rendered as a glass-card -->
+    <div class="password-card glass-card" data-id="">
+      <div class="card-top">
+        <div class="card-icon" aria-hidden="true">
+          <i data-lucide="globe"></i>
+        </div>
+        <div class="card-info">
+          <strong class="card-website"></strong>
+          <span class="card-username"></span>
+        </div>
+      </div>
+      <div class="card-password-row">
+        <span class="card-password masked">••••••••</span>
+      </div>
+      <div class="card-actions">
+        <!-- Show / Hide password -->
+        <button class="icon-btn action-show" aria-label="Show password" title="Show Password">
+          <i data-lucide="eye" aria-hidden="true"></i>
+        </button>
+        <!-- Copy password -->
+        <button class="icon-btn action-copy" aria-label="Copy password" title="Copy Password">
+          <i data-lucide="clipboard-copy" aria-hidden="true"></i>
+        </button>
+        <!-- Edit entry -->
+        <button class="icon-btn action-edit" aria-label="Edit entry" title="Edit">
+          <i data-lucide="pencil" aria-hidden="true"></i>
+        </button>
+        <!-- Delete entry -->
+        <button class="icon-btn action-delete" aria-label="Delete entry" title="Delete">
+          <i data-lucide="trash-2" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+  </template>
+
+  <!-- App logic -->
+  <script src="app.js"></script>
+</body>
+
+</html>
