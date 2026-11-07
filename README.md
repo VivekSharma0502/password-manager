@@ -1,4 +1,4 @@
-# 🔐 Password Manager — Zero-Knowledge Vault
+# 🔐 VaultX — Zero-Knowledge Password Manager
 
 A browser-based password manager where **the server never sees your passwords or your master password**.
 Every entry is encrypted in the browser with AES-GCM before it is synced to Firebase.
