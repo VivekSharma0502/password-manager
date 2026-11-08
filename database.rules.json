@@ -7,15 +7,17 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && auth.uid === $uid",
         "passwords": {
+          ".validate": "newData.hasChildren()",
           "$id": {
             ".validate": "newData.hasChildren(['v', 'iv', 'ct', 'createdAt'])",
             "v":         { ".validate": "newData.val() === 1" },
-            "iv":        { ".validate": "newData.isString() && newData.val().length < 64" },
-            "ct":        { ".validate": "newData.isString() && newData.val().length < 20000" },
-            "createdAt": { ".validate": "newData.isNumber()" },
+            "iv":        { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 64" },
+            "ct":        { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length < 20000" },
+            "createdAt": { ".validate": "newData.isNumber() && newData.val() >= 0" },
             "$other":    { ".validate": false }
           }
-        }
+        },
+        "$other": { ".validate": false }
       }
     }
   }
